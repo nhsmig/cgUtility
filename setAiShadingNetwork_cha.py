@@ -7,7 +7,7 @@ import pprint as pp
 #마야 머티리얼에 연결된 텍스쳐의 연관텍스쳐(노말,스페큘러,에미션)가 있는지 확인하여 기본 텍스쳐노드와 연관 텍스쳐파일 목록을 반환
 def doFindTextures(mayaMat):
 	fileNode = []
-	textureList = {'fileNode':'', 'path':'', 'diffuse':'', 'normal':'', 'specular':'', 'emission':''}
+	textureList = {'fileNode':'', 'path':'', 'type':'', 'diffuse':'', 'normal':'', 'specular':'', 'specularAlt':'', 'emission':''}
 	try:
 		fileNode = cmds.listConnections(mayaMat, type = 'file')[0]
 	except:
@@ -17,19 +17,24 @@ def doFindTextures(mayaMat):
 		if textureFile:
 			textureList['fileNode'] = fileNode
 			textureList['diffuse'] = textureFile.split('/')[-1:][0]
-			print textureList['diffuse']
+			# print textureList['diffuse']
+			fileType = textureList['diffuse'].split('.')[0].split('_')[-1]
+			# print fileType
+			textureList['type'] = fileType
 			textureList['path'] = textureFile.rstrip(textureList['diffuse'])
-			textureList['normal'] = textureList['diffuse'].replace('BM', 'NM')
-			textureList['specular'] = textureList['diffuse'].replace('BM', 'SPEC')
-			textureList['emission'] = textureList['diffuse'].replace('BM', 'EM')
+			textureList['normal'] = textureList['diffuse'].replace(fileType, 'NORMAL')
+			textureList['specular'] = textureList['diffuse'].replace(fileType, 'SRMA')
+			textureList['specularAlt'] = textureList['diffuse'].replace(fileType, 'SPEC')
+			textureList['emission'] = textureList['diffuse'].replace(fileType, 'EM')
 			
 			for k,v in textureList.items():
 				if k is not 'fileNode' and k is not 'path':
-					fullPath = textureList['path'] + v
-					if os.path.isfile(fullPath):
-						textureList[k] = v	
-					else:
-						textureList[k] = ''
+					if k is not 'type':
+						fullPath = textureList['path'] + v
+						if os.path.isfile(fullPath):
+							textureList[k] = v	
+						else:
+							textureList[k] = ''
 	else:
 		textureList['fileNode'] = ''
 	return textureList
@@ -71,7 +76,6 @@ def main():
 		sel = cmds.ls(type = 'shadingEngine')
 		remove = ['initialShadingGroup', 'initialParticleSE']
 		sel = list(set(sel) - set(remove))
-	print sel
 
 	for eachSG in sel:
 		mayaMat = cmds.ls(cmds.listConnections(eachSG),materials = True)
@@ -95,7 +99,10 @@ def main():
 						except:
 							texturePlaceNode = cmds.shadingNode('place2dTexture', asUtility = True, name = 'place2dTexture')
 							connTexPlacement(texturePlaceNode, textureList['fileNode'])
-					
+						
+						fileType = textureList['type']
+						print('fileType = ' + fileType)
+
 						for k,v in textureList.items():
 							#디퓨즈맵 연결
 							if k is 'diffuse' and v is not '':
@@ -134,7 +141,7 @@ def main():
 									cmds.connectAttr(bumpNode + '.outNormal', aiMat + '.normalCamera')
 								
 									
-							#스페큘러맵이 있다면 연결(RSMA규칙에 따름) 없다면 roughness를 0.8로 설정 
+							#스페큘러맵이 있다면 연결(SRMA규칙에 따름) 없다면 roughness를 0.8로 설정 
 							elif k is 'specular' and v:
 								specFileNode = cmds.shadingNode('file', asTexture = True, isColorManaged = True, name = textureList['specular'].split('.')[0])
 								cmds.setAttr(specFileNode + '.fileTextureName', textureList['path'] + v, type = 'string')
@@ -143,10 +150,32 @@ def main():
 								cmds.connectAttr(specFileNode + '.outColorR', aiMat + '.specular')
 								cmds.connectAttr(specFileNode + '.outColorG', aiMat + '.specularRoughness')
 								cmds.connectAttr(specFileNode + '.outColorB', aiMat + '.metalness')
-								
-							elif k is 'specular' and not v:
+							
+							elif k is 'specularAlt' and v:
+								# print k
+								# print v
+								if fileType == 'BM':
+									specFileNode = cmds.shadingNode('file', asTexture = True, isColorManaged = True, name = textureList['specularAlt'].split('.')[0])
+									cmds.setAttr(specFileNode + '.fileTextureName', textureList['path'] + v, type = 'string')
+									setColorspace(specFileNode, 'Raw')
+									connTexPlacement(texturePlaceNode, specFileNode)
+									cmds.connectAttr(specFileNode + '.outColorR', aiMat + '.specular')
+									cmds.connectAttr(specFileNode + '.outColorG', aiMat + '.specularRoughness')
+									cmds.connectAttr(specFileNode + '.outColorB', aiMat + '.metalness')		
+
+								else:
+									specFileNode = cmds.shadingNode('file', asTexture = True, isColorManaged = True, name = textureList['specularAlt'].split('.')[0])
+									cmds.setAttr(specFileNode + '.fileTextureName', textureList['path'] + v, type = 'string')
+									setColorspace(specFileNode, 'Raw')
+									connTexPlacement(texturePlaceNode, specFileNode)
+									cmds.connectAttr(specFileNode + '.outColorR', aiMat + '.specular')
+									cmds.setAttr(aiMat + '.specularRoughness', 0.5)
+									# cmds.connectAttr(specFileNode + '.outColorG', aiMat + '.specularRoughness')
+									# cmds.connectAttr(specFileNode + '.outColorB', aiMat + '.metalness')
+
+							elif k is 'specularAlt' and not v:
 								cmds.setAttr(aiMat + '.specularRoughness', 0.8)
-								
+
 							#에미션 맵이 있다면 AOV/id1에 연결하고 값을 glow로 설정, weight 1로 설정,  diffuse color를 emissionColor에 연결
 							elif k is 'emission' and v is not '':
 								emissionFileNode = cmds.shadingNode('file', asTexture = True, isColorManaged = True, name = textureList['emission'].split('.')[0])
