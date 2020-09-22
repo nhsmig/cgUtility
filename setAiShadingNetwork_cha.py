@@ -91,6 +91,8 @@ def main():
 					cmds.setAttr(aiMat + '.base', 1)
 					cmds.connectAttr(aiMat + '.outColor', eachSG + '.aiSurfaceShader')
 					
+					print('textureList = \n')
+					print textureList
 
 					if textureList['fileNode']:
 						texturePlaceNode = ''
@@ -173,7 +175,7 @@ def main():
 									# cmds.connectAttr(specFileNode + '.outColorG', aiMat + '.specularRoughness')
 									# cmds.connectAttr(specFileNode + '.outColorB', aiMat + '.metalness')
 
-							elif k is 'specularAlt' and not v:
+							elif (k is 'specularAlt' and not v) and (k is 'specular' and not v):
 								cmds.setAttr(aiMat + '.specularRoughness', 0.8)
 
 							#에미션 맵이 있다면 AOV/id1에 연결하고 값을 glow로 설정, weight 1로 설정,  diffuse color를 emissionColor에 연결
